@@ -1,0 +1,13 @@
+**/.classpath
+cmake-build-debug
+**/.project
+**/bin
+**/build
+**/out
+**/generated
+**/.gradle
+**/.idea
+META-INF
+**/.settings
+plugin.properties
+plugin.xml

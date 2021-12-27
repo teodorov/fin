@@ -1,0 +1,80 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url "${OBP2ReadOnlyMavenRepository}" }
+    }
+    dependencies {
+        classpath group: 'fr.ensta', name: 'ecore2java', version: '1.5'
+    }
+}
+
+version='1.0.0'
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+
+repositories {
+    mavenCentral()
+    maven { url "${OBP2ReadOnlyMavenRepository}" }
+}
+
+compileJava.options.encoding = 'UTF-8'
+
+publishing {
+    repositories {
+        maven {
+            // change to point to your repo, e.g. http://my.org/repo
+            url = "${OBP2PublishMavenRepository}"
+        }
+    }
+    publications {
+        jar(MavenPublication) {
+            groupId = 'fr.ensta-bretagne'
+            from components.java
+        }
+    }
+}
+
+apply plugin: 'fr.ensta.ecore2java'
+
+configurations {
+    antlr4
+    ecore
+    implementation.extendsFrom antlr4
+    implementation.extendsFrom ecore
+}
+
+dependencies {
+    antlr4  group: 'org.antlr', name: 'antlr4' , version: '4.5.+'
+    ecore group: 'org.eclipse.emf', name: 'org.eclipse.emf.common',               version: '2.11.0-v20150123-0347'
+    ecore group: 'org.eclipse.emf', name: 'org.eclipse.emf.ecore',                version: '2.11.0-v20150123-0347'
+    ecore group: 'org.eclipse.emf', name: 'org.eclipse.emf.ecore.xmi',            version: '2.11.0-v20150123-0347'
+    implementation group: 'org.antlr', name: 'antlr4' , version: '4.5.+'
+    testImplementation group: 'junit', name: 'junit', version: '4.7'
+}
+sourceSets.main.java.srcDirs += ['generated']
+
+String antlr4OutputPath(String path) {
+    if (System.properties['os.name'].replaceAll(' ', '').toLowerCase().contains('win')) {
+        return file(path + '/grammar')
+    }
+    return file(path)
+}
+def generatedPath = file('generated')
+generatedPath.mkdir()
+task generateAntlr4Parser(type: JavaExec) {
+    classpath configurations.antlr4
+    main = "org.antlr.v4.Tool"
+    args = ["grammar/Fin.g4"
+            , "-package"
+            , "fin.grammar"
+            , "-o"
+            , antlr4OutputPath("generated/fin")]
+}
+
+ecore2java {
+    genModelPath = file('model/fin.genmodel')
+    outputDir = generatedPath
+}
+compileJava.dependsOn generateAntlr4Parser, ecore2java
+
+clean { doLast { project.delete "generated" } }
