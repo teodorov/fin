@@ -5,4 +5,4 @@ set(CMAKE_C_STANDARD 99)
 
 include_directories(include)
 
-add_executable(fast_interaction_nets src/main/c/main.c src/main/c/allocator.c)
+add_executable(fast_interaction_nets src/main/c/main.c src/main/c/allocator.c src/main/c/bitset.c include/bitset.h src/main/c/fin_core.c include/fin_core.h)
