@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fin_core.h>
+#include <assert.h>
 
 fin_name_instance_t *allocate_names(uint32_t number_of_names) {
     fin_name_instance_t *names = malloc(sizeof(fin_name_instance_t) * number_of_names);
@@ -38,7 +39,7 @@ void print_agent_instance(fin_instance_t *instance) {
         }
         fprintf(stdout, "%p->%p", &instance->m_connections[i], instance->m_connections[i]);
     }
-    fprintf(stdout, "]\n");
+    fprintf(stdout, "] %p<-->%p\n", instance->m_previous, instance->m_next);
 }
 
 fin_instance_t *allocate_instance(fin_agent_declaration_t *declaration) {
@@ -51,6 +52,8 @@ fin_instance_t *allocate_instance(fin_agent_declaration_t *declaration) {
         fprintf(stderr, "[%s,%d] Cannot allocate instance for agent %s", __FILE__, __LINE__, declaration->m_name);
         exit(1);
     }
+    the_instance->m_previous = NULL;
+    the_instance->m_next = NULL;
     the_instance->m_declaration = declaration;
     return the_instance;
 }
@@ -83,25 +86,16 @@ void connect(fin_port_t *port1, fin_port_t *port2) {
     *port2 = port1;
 }
 
-fin_net_t *allocate_net(uint32_t names_size, uint32_t instances_size) {
+fin_net_t *allocate_net(uint32_t names_size) {
     fin_net_t *the_net = calloc(1, sizeof(fin_net_t));
     if (the_net == NULL) {
-        fprintf(stderr, "[%s,%d] Cannot allocate a net of %d names and %d agents", __FILE__, __LINE__, names_size,
-                instances_size);
+        fprintf(stderr, "[%s,%d] Cannot allocate a net of %d names", __FILE__, __LINE__, names_size);
         exit(1);
     }
     the_net->m_names_size = names_size;
-    the_net->m_instances_size = instances_size;
     the_net->m_names = allocate_names(names_size);
 
-
-    fin_instance_t **instances = malloc(sizeof(fin_name_instance_t) * instances_size);
-    if (instances == NULL) {
-        fprintf(stderr, "[%s,%d] Cannot allocate %d instances", __FILE__, __LINE__, instances_size);
-        exit(1);
-    }
-
-    the_net->m_instances = instances;
+    the_net->m_instances = NULL;
 
     return the_net;
 }
@@ -114,11 +108,14 @@ void free_net(fin_net_t *net) {
         free(net->m_names);
     }
     if (net->m_instances != NULL) {
-        for (int i = 0; i < net->m_instances_size; i++) {
-            if (net->m_instances[i] == NULL) continue;
-            free_instance(net->m_instances[i]);
+        while (net->m_instances != NULL) {
+            fin_instance_t *tmp = net->m_instances;
+            net->m_instances = net->m_instances->m_next;
+            if (net->m_instances != NULL) {
+                net->m_instances->m_previous = NULL;
+            }
+            free_instance(tmp);
         }
-        free(net->m_instances);
     }
 
     free(net);
@@ -141,11 +138,24 @@ void print_net(fin_net_t *net) {
     }
     fprintf(stdout, "]\n");
 
-    for (int i = 0; i < net->m_instances_size; i++) {
+    fin_instance_t *current = net->m_instances;
+    while (current != NULL) {
         fprintf(stdout, "\t");
-        print_agent_instance(net->m_instances[i]);
+        print_agent_instance(current);
+        current = current->m_next;
     }
     fprintf(stdout, "}\n");
+}
+
+fin_instance_t *add_instance(fin_net_t *net, fin_instance_t *instance) {
+    if (net == NULL || instance == NULL) return NULL;
+    instance->m_next = net->m_instances;
+    instance->m_previous = NULL;
+    if (net->m_instances != NULL) {
+        net->m_instances->m_previous = instance;
+    }
+    net->m_instances = instance;
+    return instance;
 }
 
 //fin_agent_declaration_t *allocate_declaration(char *name, uint32_t arity) {
@@ -164,14 +174,14 @@ void print_net(fin_net_t *net) {
 //    free(agent_declaration);
 //}
 
-fin_rule_t *allocate_rule() {
-    //TODO
-    return NULL;
-}
-void free_rule(fin_rule_t *rule) {
-    if (rule == NULL) return;
-    //TODO
-}
+//fin_rule_t *allocate_rule() {
+//    //TODO
+//    return NULL;
+//}
+//void free_rule(fin_rule_t *rule) {
+//    if (rule == NULL) return;
+//    //TODO
+//}
 
 fin_configuration_t *allocate_configuration(uint32_t declaration_count, uint32_t rule_count) {
     fin_configuration_t *the_configuration = malloc(sizeof(fin_configuration_t));
@@ -201,11 +211,208 @@ void free_configuration(fin_configuration_t *configuration) {
         free(configuration->m_agent_declarations);
     }
     if (configuration->m_rules != NULL) {
+        for (int i = 0; i<configuration->m_rule_count; i++) {
+            free_net(configuration->m_rules[i].m_lhs);
+            free_net(configuration->m_rules[i].m_rhs);
+        }
         free(configuration->m_rules);
     }
     free(configuration);
 }
 
+int32_t find_name_index(fin_net_t *net, fin_port_t port) {
+    for (int i=0;i<net->m_names_size; i++) {
+        if (port == &net->m_names[i]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+//BEGIN poor man hashmap, just two arrays
+struct poor_hashmap_s {
+    uint32_t m_capacity;
+    uint32_t m_size;
+    fin_port_t *m_keys;
+    fin_port_t *m_values;
+};
+typedef struct poor_hashmap_s poor_hashmap_t;
+poor_hashmap_t *create_hashmap(uint32_t capacity) {
+    poor_hashmap_t *map = malloc(sizeof(poor_hashmap_t));
+    map->m_capacity = capacity;
+    map->m_size = 0;
+    map->m_keys = calloc(capacity, sizeof(fin_port_t));
+    map->m_values = calloc(capacity, sizeof(fin_port_t));
+    return map;
+}
+void free_hashmap(poor_hashmap_t *map) {
+    free(map->m_keys);
+    free(map->m_values);
+    free(map);
+}
+
+void map_add(poor_hashmap_t *map, fin_port_t key, fin_port_t value) {
+    for (int i = 0; i<map->m_size; i++) {
+        if (map->m_keys[i] == key) {
+            return;
+        }
+    }
+    map->m_keys[map->m_size] = key;
+    map->m_values[map->m_size] = value;
+    map->m_size++;
+}
+
+fin_port_t map_get(poor_hashmap_t *map, fin_port_t key) {
+    for (int i = 0; i<map->m_size; i++) {
+        if (map->m_keys[i] == key) {
+            return map->m_values[i];
+        }
+    }
+    return NULL;
+}
+//END poor man hashmap
+
+fin_net_t *copy_net(fin_net_t *in_net) {
+    //TODO: need to copy the rewrite net
+
+    poor_hashmap_t *map = create_hashmap(100);
+
+    fin_net_t *the_net = allocate_net(in_net->m_names_size);
+
+    for (int i=0;i<in_net->m_names_size; i++) {
+        fin_port_t key_port = get_name(in_net, i);
+        fin_port_t value_port = get_name(the_net, i);
+        map_add(map, key_port, value_port);
+    }
+
+    fin_instance_t *current = in_net->m_instances;
+    fin_instance_t *last = the_net->m_instances;
+    while (current != NULL) {
+        fin_instance_t *the_instance = allocate_instance(current->m_declaration);
+        if (last == NULL) {
+            the_net->m_instances = the_instance;
+        } else {
+            last->m_next = the_instance;
+            the_instance->m_previous = last;
+        }
+        last = the_instance;
+
+        for (int i=0; i<=the_instance->m_declaration->m_arity; i++) {
+            fin_port_t key_port = get_port(current, i);
+            fin_port_t value_port = get_port(the_instance, i);
+            map_add(map, key_port, value_port);
+        }
+
+        current = current->m_next;
+    }
+
+
+    for (int i=0;i<in_net->m_names_size; i++) {
+        the_net->m_names[i] = map_get(map, in_net->m_names[i]);
+    }
+
+    current = in_net->m_instances;
+    fin_instance_t *target = the_net->m_instances;
+    while (current != NULL) {
+        for (int i=0; i<=current->m_declaration->m_arity; i++) {
+            target->m_connections[i] = map_get(map, current->m_connections[i]);
+        }
+
+        current = current->m_next;
+        target = target->m_next;
+    }
+
+    free_hashmap(map);
+
+    return the_net;
+}
+
+void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instance_t *in_second, fin_rule_t *in_rule) {
+    fin_instance_t *the_first  = in_first;
+    fin_instance_t *the_second = in_second;
+
+    print_net(io_net);
+
+    fin_instance_t *the_first_pattern = NULL;
+    fin_instance_t *the_second_pattern = NULL;
+    fin_instance_t *current = in_rule->m_lhs->m_instances;
+    while (current != NULL) {
+        if (current->m_declaration == the_first->m_declaration) {
+            the_first_pattern = current;
+            if (the_second_pattern != NULL) break;
+        } else if (current->m_declaration == the_second->m_declaration) {
+            the_second_pattern = current;
+            if (the_first_pattern != NULL) break;
+        }
+        current = current->m_next;
+    }
+    //copy the target net from the rule
+    fin_net_t* the_target = copy_net(in_rule->m_rhs);
+    //connect the io_net to the rewrite
+    uint32_t arity = the_first->m_declaration->m_arity;
+    for (int i=1; i<=arity; i++) {
+        fin_port_t port = the_first_pattern->m_connections[i];
+        //QUESTION: can we do this without finding the index ?
+        int32_t index = find_name_index(in_rule->m_lhs, port);
+
+        fprintf(stdout, "port %p, index %d\n", port, index);
+
+        connect(
+                the_first->m_connections[i],
+                *get_name(the_target, index));
+        assert (the_target->m_names[index] == *get_name(the_target, index));
+    }
+
+    arity = the_second->m_declaration->m_arity;
+    for (int i=1; i<=arity; i++) {
+        fin_port_t port = the_second_pattern->m_connections[i];
+        //QUESTION: can we do this without finding the index ?
+        int32_t index = find_name_index(in_rule->m_lhs, port);
+
+        fprintf(stdout, "port %p, index %d\n", port, index);
+
+        connect(
+                the_second->m_connections[i],
+                *get_name(the_target, index) );
+        assert (the_target->m_names[index] == *get_name(the_target, index));
+    }
+
+    //remove and free the matched instances and insert the new ones
+    if (the_first->m_next != NULL) {
+        the_first->m_next->m_previous = the_first->m_previous;
+    }
+    if (the_first->m_previous != NULL) {
+        the_first->m_previous->m_next = the_first->m_next;
+    }
+    if (io_net->m_instances == the_first) {
+        io_net->m_instances = the_first->m_next;
+    }
+    free_instance(the_first);
+
+    if (the_second->m_next != NULL) {
+        the_second->m_next->m_previous = the_second->m_previous;
+    }
+    if (the_second->m_previous != NULL) {
+        the_second->m_previous->m_next = the_second->m_next;
+    }
+    if (io_net->m_instances == the_second) {
+        io_net->m_instances = the_second->m_next;
+    }
+    free_instance(the_second);
+
+    //add the instances from the target to the net being rewritten (io_net)
+    while (the_target->m_instances != NULL) {
+        fin_instance_t *to_add = the_target->m_instances;
+        the_target->m_instances = the_target->m_instances->m_next;
+        add_instance(io_net, to_add);
+
+    }
+    //free the target
+    free_net(the_target);
+
+    print_net(io_net);
+    //TODO: need to detect the apparition of a new active pair.
+}
 
 
 
