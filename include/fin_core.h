@@ -14,7 +14,13 @@ struct fin_agent_declaration_s {
 };
 typedef struct fin_agent_declaration_s fin_agent_declaration_t;
 
-typedef void *fin_port_t;
+typedef void* fin_port_t;
+
+#define PRINCIPAL 0x01
+#define AS_PRINCIPAL(p) ((fin_port_t)(((uintptr_t)(p)) | (PRINCIPAL)))
+#define IS_PRINCIPAL(p) ((fin_port_t)(((uintptr_t)(p)) & (PRINCIPAL)))
+#define GET_POINTER(p) ((fin_port_t*)(((uintptr_t)(p)) & ~(PRINCIPAL)))
+#define PRINCIPAL2INSTANCE(p) ( (fin_instance_t *) (GET_POINTER( (p) ) - 3 ) )
 
 typedef struct fin_instance_s fin_instance_t;
 struct fin_instance_s {
@@ -61,6 +67,7 @@ void print_net(fin_net_t *net);
 void to_dot_net(FILE *file, fin_net_t *net);
 
 fin_instance_t *add_instance(fin_net_t *net, fin_instance_t *instance);
+void remove_and_free_instance(fin_net_t *net, fin_instance_t *instance);
 
 // operation with names
 fin_name_instance_t *get_name(fin_net_t *net, uint32_t name_id);
@@ -80,7 +87,14 @@ fin_port_t *get_port(fin_instance_t *instance, uint32_t port_id);
 
 void connect(fin_port_t *port1, fin_port_t *port2);
 
-void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instance_t *in_second, fin_rule_t *in_rule);
+typedef void (*fin_active_pair_handler_t)(fin_instance_t*, fin_instance_t*, void*);
+void rewrite_active_pair(
+        fin_net_t *io_net,
+        fin_instance_t *in_first,
+        fin_instance_t *in_second,
+        fin_rule_t *in_rule,
+        fin_active_pair_handler_t in_user_handler,
+        void* opaque);
 
 
 #endif //FAST_INTERACTION_NETS_FIN_CORE_H

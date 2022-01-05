@@ -6,7 +6,11 @@
 
 
 
-
+void ap_handler(fin_instance_t *a, fin_instance_t *b, void *data) {
+    char *x = a->m_declaration->m_name;
+    char *y = b->m_declaration->m_name;
+    fprintf(stdout, "CB active pair %s(%p)-%s(%p)\n", x, a->m_connections[0], y, b->m_connections[1]);
+}
 
 int main() {
     fin_configuration_t *the_configuration = allocate_configuration(3, 2);
@@ -73,21 +77,21 @@ int main() {
 
     /*NET for config 0 -- BEGIN*/
     //connect the instances
-//    connect(get_port(aZ, 0), get_port(aS, 1));
-//    connect(get_port(aS, 0), get_port(aP, 0));
-//
-//    connect(get_port(bZ, 0), get_port(bS, 1));
-//    connect(get_port(bS, 0), get_port(aP, 1));
-//
-//    connect(get_port(aP, 2), get_name(the_net, 0));
+    connect(get_port(aZ, 0), get_port(aS, 1));
+    connect(get_port(aS, 0), get_port(aP, 0));
+
+    connect(get_port(bZ, 0), get_port(bS, 1));
+    connect(get_port(bS, 0), get_port(aP, 1));
+
+    connect(get_port(aP, 2), get_name(the_net, 0));
     /* NET for config 0 -- END*/
     /*NET for config 1 -- BEGIN*/
 
-    connect(get_port(aZ, 0), get_port(aP, 0));
-    connect(get_port(aP, 1), get_port(bS, 0));
-    connect(get_port(aP, 2), get_port(aS, 1));
-    connect(get_port(bZ, 0), get_port(bS, 1));
-    connect(get_port(aS, 0), get_name(the_net, 0));
+//    connect(get_port(aZ, 0), get_port(aP, 0));
+//    connect(get_port(aP, 1), get_port(bS, 0));
+//    connect(get_port(aP, 2), get_port(aS, 1));
+//    connect(get_port(bZ, 0), get_port(bS, 1));
+//    connect(get_port(aS, 0), get_name(the_net, 0));
 
     /*NET for config 1 -- END*/
 
@@ -106,10 +110,18 @@ int main() {
 
     fprintf(stdout, "rewrite net :\n");
     /* rewrite CONFIG 0 => CONFIG 1*/
-//    rewrite_active_pair(the_net, aS, aP, &the_configuration->m_rules[1]);
+    rewrite_active_pair(
+            the_net,
+            aS, aP,
+            &the_configuration->m_rules[1],
+            ap_handler, NULL);
 
     /*rewrite CONFIG 1 => CONFIG 2*/
-    rewrite_active_pair(the_net, aZ, aP, &the_configuration->m_rules[0]);
+//    rewrite_active_pair(
+//            the_net,
+//            aZ,aP,
+//            &the_configuration->m_rules[0],
+//            ap_handler, NULL);
 
     to_dot_net(stdout, the_net);
 
@@ -120,3 +132,4 @@ int main() {
 
     return 0;
 }
+

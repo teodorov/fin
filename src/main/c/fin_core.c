@@ -37,7 +37,7 @@ void print_agent_instance(fin_instance_t *instance) {
         } else {
             fprintf(stdout, ", ");
         }
-        fprintf(stdout, "%p->%p", &instance->m_connections[i], instance->m_connections[i]);
+        fprintf(stdout, "%p->%p", &instance->m_connections[i], GET_POINTER(instance->m_connections[i]));
     }
     fprintf(stdout, "] %p<-->%p\n", instance->m_previous, instance->m_next);
 }
@@ -53,7 +53,7 @@ void to_dot_agent_instance(FILE *file, fin_instance_t *instance) {
     }
     fprintf(file, "\n\t}\n");
     for (int i=0; i < instance->m_declaration->m_arity + 1; i++) {
-        fprintf(file, "\tp%p -> p%p [arrowhead=none]\n", &instance->m_connections[i], instance->m_connections[i]);
+        fprintf(file, "\tp%p -> p%p [arrowhead=none]\n", &instance->m_connections[i], GET_POINTER(instance->m_connections[i]));
     }
 }
 
@@ -88,7 +88,8 @@ fin_port_t *get_port(fin_instance_t *instance, uint32_t port_id) {
                 port_id, instance->m_declaration->m_name, instance->m_declaration->m_arity);
         exit(1);
     }
-    return &instance->m_connections[port_id];
+    fin_port_t * the_port_address = &instance->m_connections[port_id];
+    return port_id == 0 ? AS_PRINCIPAL(the_port_address) : the_port_address;
 }
 
 void connect(fin_port_t *port1, fin_port_t *port2) {
@@ -97,8 +98,8 @@ void connect(fin_port_t *port1, fin_port_t *port2) {
         exit(1);
     }
 
-    *port1 = port2;
-    *port2 = port1;
+    *GET_POINTER(port1) = port2;
+    *GET_POINTER(port2) = port1;
 }
 
 fin_net_t *allocate_net(uint32_t names_size) {
@@ -149,7 +150,7 @@ void print_net(fin_net_t *net) {
         } else {
             fprintf(stdout, ", ");
         }
-        fprintf(stdout, "%p->%p", &net->m_names[i], net->m_names[i]);
+        fprintf(stdout, "%p->%p", &net->m_names[i], GET_POINTER(net->m_names[i]));
     }
     fprintf(stdout, "]\n");
 
@@ -166,7 +167,7 @@ void to_dot_net(FILE *file, fin_net_t *net) {
     fprintf(file, "digraph {\n");
     for (int i = 0; i<net->m_names_size; i++) {
         fprintf(file, "\tp%p [shape=circle, label=\"%d\", style=filled, color=lightblue]\n", &net->m_names[i], i);
-        fprintf(file, "\tp%p -> p%p [arrowhead=none] \n", &net->m_names[i], net->m_names[i]);
+        fprintf(file, "\tp%p -> p%p [arrowhead=none] \n", &net->m_names[i], GET_POINTER(net->m_names[i]));
     }
     fin_instance_t *current = net->m_instances;
     while (current != NULL) {
@@ -185,6 +186,19 @@ fin_instance_t *add_instance(fin_net_t *net, fin_instance_t *instance) {
     }
     net->m_instances = instance;
     return instance;
+}
+
+void remove_and_free_instance(fin_net_t *io_net, fin_instance_t *instance) {
+    if (instance->m_next != NULL) {
+        instance->m_next->m_previous = instance->m_previous;
+    }
+    if (instance->m_previous != NULL) {
+        instance->m_previous->m_next = instance->m_next;
+    }
+    if (io_net->m_instances == instance) {
+        io_net->m_instances = instance->m_next;
+    }
+    free_instance(instance);
 }
 
 //fin_agent_declaration_t *allocate_declaration(char *name, uint32_t arity) {
@@ -422,11 +436,11 @@ fin_net_t *copy_net(fin_net_t *in_net) {
         fin_port_t value_port = get_name(the_net, i);
         map_add(map, key_port, value_port);
 
-        fin_port_t value = map_get(map, in_net->m_names[i]);
+        fin_port_t value = map_get(map, *GET_POINTER(key_port));
         if (value != NULL) {
             the_net->m_names[i] = value;
         } else {
-            push_vector(unresolved, &the_net->m_names[i], in_net->m_names[i]);
+            push_vector(unresolved, &the_net->m_names[i], *GET_POINTER(key_port));
         }
 
     }
@@ -448,11 +462,11 @@ fin_net_t *copy_net(fin_net_t *in_net) {
             fin_port_t value_port = get_port(the_instance, i);
             map_add(map, key_port, value_port);
 
-            fin_port_t value = map_get(map, current->m_connections[i]);
+            fin_port_t value = map_get(map, *GET_POINTER(key_port));
             if (value != NULL) {
                 the_instance->m_connections[i] = value;
             } else {
-                push_vector(unresolved, &the_instance->m_connections[i], current->m_connections[i]);
+                push_vector(unresolved, &the_instance->m_connections[i], *GET_POINTER(key_port));
             }
         }
 
@@ -470,7 +484,15 @@ fin_net_t *copy_net(fin_net_t *in_net) {
     return the_net;
 }
 
-void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instance_t *in_second, fin_rule_t *in_rule) {
+
+
+void rewrite_active_pair(
+        fin_net_t *io_net,
+        fin_instance_t *in_first,
+        fin_instance_t *in_second,
+        fin_rule_t *in_rule,
+        fin_active_pair_handler_t in_ap_handler,
+        void* opaque) {
     fin_instance_t *the_first  = in_first;
     fin_instance_t *the_second = in_second;
 
@@ -491,57 +513,44 @@ void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instan
     }
     //copy the target net from the rule
     fin_net_t* the_target = copy_net(in_rule->m_rhs);
+
     //connect the io_net to the rewrite
     uint32_t arity = the_first->m_declaration->m_arity;
     for (int i=1; i<=arity; i++) {
-        fin_port_t port = the_first_pattern->m_connections[i];
-        //QUESTION: can we do this without finding the index ?
+        fin_port_t port = GET_POINTER(the_first_pattern->m_connections[i]);
+        //TODO: do this without finding the index ? the pattern instances should be ordered, and the names also
         int32_t index = find_name_index(in_rule->m_lhs, port);
 
-//        fprintf(stdout, "port %p, index %d\n", port, index);
+        fin_port_t *p1 = the_first->m_connections[i];
+        fin_port_t *p2 = *get_name(the_target, index);
 
-        connect(
-                the_first->m_connections[i],
-                *get_name(the_target, index));
-        assert (the_target->m_names[index] == *get_name(the_target, index));
+        connect(p1, p2);
+
+        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
+            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), opaque);
+        }
     }
 
     arity = the_second->m_declaration->m_arity;
     for (int i=1; i<=arity; i++) {
-        fin_port_t port = the_second_pattern->m_connections[i];
-        //QUESTION: can we do this without finding the index ?
+        fin_port_t port = GET_POINTER(the_second_pattern->m_connections[i]);
+        //TODO: do this without finding the index ? the pattern instances should be ordered, and the names also
         int32_t index = find_name_index(in_rule->m_lhs, port);
 
-//        fprintf(stdout, "port %p, index %d\n", port, index);
+        fin_port_t *p1 = the_second->m_connections[i];
+        fin_port_t *p2 = *get_name(the_target, index);
+        connect(p1, p2);
 
-        connect(
-                the_second->m_connections[i],
-                *get_name(the_target, index) );
-        assert (the_target->m_names[index] == *get_name(the_target, index));
+        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
+            char *x = PRINCIPAL2INSTANCE(p1)->m_declaration->m_name;
+            char *y = PRINCIPAL2INSTANCE(p2)->m_declaration->m_name;
+            fprintf(stdout, "active pair %s(%p)-%s(%p)\n", x, p1, y,p2);
+        }
     }
 
     //remove and free the matched instances and insert the new ones
-    if (the_first->m_next != NULL) {
-        the_first->m_next->m_previous = the_first->m_previous;
-    }
-    if (the_first->m_previous != NULL) {
-        the_first->m_previous->m_next = the_first->m_next;
-    }
-    if (io_net->m_instances == the_first) {
-        io_net->m_instances = the_first->m_next;
-    }
-    free_instance(the_first);
-
-    if (the_second->m_next != NULL) {
-        the_second->m_next->m_previous = the_second->m_previous;
-    }
-    if (the_second->m_previous != NULL) {
-        the_second->m_previous->m_next = the_second->m_next;
-    }
-    if (io_net->m_instances == the_second) {
-        io_net->m_instances = the_second->m_next;
-    }
-    free_instance(the_second);
+    remove_and_free_instance(io_net, the_first);
+    remove_and_free_instance(io_net, the_second);
 
     //add the instances from the target to the net being rewritten (io_net)
     while (the_target->m_instances != NULL) {
