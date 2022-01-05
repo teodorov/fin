@@ -6,6 +6,7 @@
 #define FAST_INTERACTION_NETS_FIN_CORE_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 struct fin_agent_declaration_s {
     char *m_name;     //the name of the agent
@@ -56,6 +57,8 @@ fin_net_t *allocate_net(uint32_t names_size);
 void free_net(fin_net_t *net);
 
 void print_net(fin_net_t *net);
+
+void to_dot_net(FILE *file, fin_net_t *net);
 
 fin_instance_t *add_instance(fin_net_t *net, fin_instance_t *instance);
 

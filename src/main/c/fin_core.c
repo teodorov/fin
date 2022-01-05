@@ -42,6 +42,21 @@ void print_agent_instance(fin_instance_t *instance) {
     fprintf(stdout, "] %p<-->%p\n", instance->m_previous, instance->m_next);
 }
 
+void to_dot_agent_instance(FILE *file, fin_instance_t *instance) {
+    fprintf(file, "\tsubgraph cluster%p { style=filled; color=lightgray; label=\"%s\"; \n\t\tp%p [shape=point, label=\"%d\"]\n",
+            instance,
+            instance->m_declaration->m_name,
+            &instance->m_connections[0],
+            0);
+    for (int i=1; i < instance->m_declaration->m_arity + 1; i++) {
+        fprintf(file, "\t\tp%p [shape=plain, label=\"%d\"]\n", &instance->m_connections[i], i);
+    }
+    fprintf(file, "\n\t}\n");
+    for (int i=0; i < instance->m_declaration->m_arity + 1; i++) {
+        fprintf(file, "\tp%p -> p%p [arrowhead=none]\n", &instance->m_connections[i], instance->m_connections[i]);
+    }
+}
+
 fin_instance_t *allocate_instance(fin_agent_declaration_t *declaration) {
     if (declaration == NULL) {
         fprintf(stderr, "[%s,%d] Cannot allocate instance for NULL", __FILE__, __LINE__);
@@ -145,6 +160,20 @@ void print_net(fin_net_t *net) {
         current = current->m_next;
     }
     fprintf(stdout, "}\n");
+}
+
+void to_dot_net(FILE *file, fin_net_t *net) {
+    fprintf(file, "digraph {\n");
+    for (int i = 0; i<net->m_names_size; i++) {
+        fprintf(file, "\tp%p [shape=circle, label=\"%d\", style=filled, color=lightblue]\n", &net->m_names[i], i);
+        fprintf(file, "\tp%p -> p%p [arrowhead=none] \n", &net->m_names[i], net->m_names[i]);
+    }
+    fin_instance_t *current = net->m_instances;
+    while (current != NULL) {
+        to_dot_agent_instance(file, current);
+        current = current->m_next;
+    }
+    fprintf(file, "}\n");
 }
 
 fin_instance_t *add_instance(fin_net_t *net, fin_instance_t *instance) {
@@ -272,7 +301,12 @@ fin_port_t map_get(poor_hashmap_t *map, fin_port_t key) {
 }
 //END poor man hashmap
 
-fin_net_t *copy_net(fin_net_t *in_net) {
+/**
+ * Implements the copy iterating twice over the net.
+ * First iteration creates the new net and maps the old addresses to the new ones.
+ * The second iteration uses the map to connect the nodes in the new map.
+ * */
+fin_net_t *copy_net0(fin_net_t *in_net) {
     //TODO: need to copy the rewrite net
 
     poor_hashmap_t *map = create_hashmap(100);
@@ -327,11 +361,120 @@ fin_net_t *copy_net(fin_net_t *in_net) {
     return the_net;
 }
 
+struct resolve_pair_s {
+    fin_port_t *m_target;
+    fin_port_t m_query;
+};
+typedef struct resolve_pair_s resolve_pair_t;
+struct vector_s {
+    uint32_t m_capacity;
+    uint32_t m_size;
+    resolve_pair_t *m_data;
+};
+typedef struct vector_s vector_t;
+
+vector_t *create_vector(uint32_t capacity) {
+    vector_t *vector = malloc(sizeof(vector_t));
+    if (vector == NULL) {
+        fprintf(stderr, "[%s,%d] Cannot allocate a vector of %d ports", __FILE__, __LINE__, capacity);
+        exit(1);
+    }
+
+    vector->m_data = calloc(capacity, sizeof(resolve_pair_t));
+    vector->m_capacity = capacity;
+    vector->m_size = 0;
+    return vector;
+}
+
+void free_vector(vector_t *vector) {
+    if (vector == NULL) return;
+    free(vector);
+}
+
+void push_vector(vector_t *vector, fin_port_t *target, fin_port_t query) {
+    if (vector->m_size >= vector->m_capacity) {
+        fprintf(stderr, "[%s,%d] Cannot push, the vector is full", __FILE__, __LINE__);
+        exit(1);
+    }
+    vector->m_data[vector->m_size].m_target = target;
+    vector->m_data[vector->m_size].m_query = query;
+    vector->m_size++;
+}
+
+resolve_pair_t *pop_vector(vector_t *vector) {
+    if (vector->m_size <= 0) {
+        return NULL;
+    }
+    return &vector->m_data[--vector->m_size];
+}
+
+/**
+ * Implements the copy in a single pass, using an unresolved stack to store forward pointers.
+ * */
+fin_net_t *copy_net(fin_net_t *in_net) {
+    poor_hashmap_t *map = create_hashmap(100);
+    vector_t *unresolved = create_vector(100);
+
+    fin_net_t *the_net = allocate_net(in_net->m_names_size);
+
+    for (int i=0;i<in_net->m_names_size; i++) {
+        fin_port_t key_port = get_name(in_net, i);
+        fin_port_t value_port = get_name(the_net, i);
+        map_add(map, key_port, value_port);
+
+        fin_port_t value = map_get(map, in_net->m_names[i]);
+        if (value != NULL) {
+            the_net->m_names[i] = value;
+        } else {
+            push_vector(unresolved, &the_net->m_names[i], in_net->m_names[i]);
+        }
+
+    }
+
+    fin_instance_t *current = in_net->m_instances;
+    fin_instance_t *last = the_net->m_instances;
+    while (current != NULL) {
+        fin_instance_t *the_instance = allocate_instance(current->m_declaration);
+        if (last == NULL) {
+            the_net->m_instances = the_instance;
+        } else {
+            last->m_next = the_instance;
+            the_instance->m_previous = last;
+        }
+        last = the_instance;
+
+        for (int i=0; i<=the_instance->m_declaration->m_arity; i++) {
+            fin_port_t key_port = get_port(current, i);
+            fin_port_t value_port = get_port(the_instance, i);
+            map_add(map, key_port, value_port);
+
+            fin_port_t value = map_get(map, current->m_connections[i]);
+            if (value != NULL) {
+                the_instance->m_connections[i] = value;
+            } else {
+                push_vector(unresolved, &the_instance->m_connections[i], current->m_connections[i]);
+            }
+        }
+
+        current = current->m_next;
+    }
+
+    resolve_pair_t *to_resolve = NULL;
+    while ((to_resolve = pop_vector(unresolved)) != NULL) {
+        *(to_resolve->m_target) = map_get(map, to_resolve->m_query);
+    }
+
+    free_vector(unresolved);
+    free_hashmap(map);
+
+    return the_net;
+}
+
 void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instance_t *in_second, fin_rule_t *in_rule) {
     fin_instance_t *the_first  = in_first;
     fin_instance_t *the_second = in_second;
 
-    print_net(io_net);
+//    print_net(io_net);
 
     fin_instance_t *the_first_pattern = NULL;
     fin_instance_t *the_second_pattern = NULL;
@@ -355,7 +498,7 @@ void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instan
         //QUESTION: can we do this without finding the index ?
         int32_t index = find_name_index(in_rule->m_lhs, port);
 
-        fprintf(stdout, "port %p, index %d\n", port, index);
+//        fprintf(stdout, "port %p, index %d\n", port, index);
 
         connect(
                 the_first->m_connections[i],
@@ -369,7 +512,7 @@ void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instan
         //QUESTION: can we do this without finding the index ?
         int32_t index = find_name_index(in_rule->m_lhs, port);
 
-        fprintf(stdout, "port %p, index %d\n", port, index);
+//        fprintf(stdout, "port %p, index %d\n", port, index);
 
         connect(
                 the_second->m_connections[i],
@@ -410,7 +553,7 @@ void rewrite_active_pair(fin_net_t *io_net, fin_instance_t *in_first, fin_instan
     //free the target
     free_net(the_target);
 
-    print_net(io_net);
+//    print_net(io_net);
     //TODO: need to detect the apparition of a new active pair.
 }
 

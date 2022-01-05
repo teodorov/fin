@@ -73,21 +73,21 @@ int main() {
 
     /*NET for config 0 -- BEGIN*/
     //connect the instances
-    connect(get_port(aZ, 0), get_port(aS, 1));
-    connect(get_port(aS, 0), get_port(aP, 0));
-
-    connect(get_port(bZ, 0), get_port(bS, 1));
-    connect(get_port(bS, 0), get_port(aP, 1));
-
-    connect(get_port(aP, 2), get_name(the_net, 0));
+//    connect(get_port(aZ, 0), get_port(aS, 1));
+//    connect(get_port(aS, 0), get_port(aP, 0));
+//
+//    connect(get_port(bZ, 0), get_port(bS, 1));
+//    connect(get_port(bS, 0), get_port(aP, 1));
+//
+//    connect(get_port(aP, 2), get_name(the_net, 0));
     /* NET for config 0 -- END*/
     /*NET for config 1 -- BEGIN*/
 
-//    connect(get_port(aZ, 0), get_port(aP, 0));
-//    connect(get_port(aP, 1), get_port(bS, 0));
-//    connect(get_port(aP, 2), get_port(aS, 1));
-//    connect(get_port(bZ, 0), get_port(bS, 1));
-//    connect(get_port(aS, 0), get_name(the_net, 0));
+    connect(get_port(aZ, 0), get_port(aP, 0));
+    connect(get_port(aP, 1), get_port(bS, 0));
+    connect(get_port(aP, 2), get_port(aS, 1));
+    connect(get_port(bZ, 0), get_port(bS, 1));
+    connect(get_port(aS, 0), get_name(the_net, 0));
 
     /*NET for config 1 -- END*/
 
@@ -102,13 +102,16 @@ int main() {
     fprintf(stdout, "active net :\n");
     print_net(the_net);
 
+    to_dot_net(stdout, the_net);
+
     fprintf(stdout, "rewrite net :\n");
     /* rewrite CONFIG 0 => CONFIG 1*/
-    rewrite_active_pair(the_net, aS, aP, &the_configuration->m_rules[1]);
+//    rewrite_active_pair(the_net, aS, aP, &the_configuration->m_rules[1]);
 
     /*rewrite CONFIG 1 => CONFIG 2*/
-//    rewrite_active_pair(the_net, aZ, aP, &the_configuration->m_rules[0]);
+    rewrite_active_pair(the_net, aZ, aP, &the_configuration->m_rules[0]);
 
+    to_dot_net(stdout, the_net);
 
     //free the net
     free_net(the_net);
