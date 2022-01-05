@@ -1,15 +1,22 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <fin_core.h>
 
 
-
+struct ap {
+    fin_instance_t *a;
+    fin_instance_t *b;
+};
 
 void ap_handler(fin_instance_t *a, fin_instance_t *b, void *data) {
     char *x = a->m_declaration->m_name;
     char *y = b->m_declaration->m_name;
-    fprintf(stdout, "CB active pair %s(%p)-%s(%p)\n", x, a->m_connections[0], y, b->m_connections[1]);
+    fprintf(stdout, "CB active pair %s(%p)-%s(%p)\n", x, &a->m_connections[0], y, &b->m_connections[0]);
+    if (data == NULL) return;
+    ((struct ap*) data)->a = a;
+    ((struct ap*) data)->b = b;
 }
 
 int main() {
@@ -110,11 +117,11 @@ int main() {
 
     fprintf(stdout, "rewrite net :\n");
     /* rewrite CONFIG 0 => CONFIG 1*/
-    rewrite_active_pair(
-            the_net,
-            aS, aP,
-            &the_configuration->m_rules[1],
-            ap_handler, NULL);
+//    rewrite_active_pair(
+//            the_net,
+//            aS, aP,
+//            &the_configuration->m_rules[1],
+//            ap_handler, NULL);
 
     /*rewrite CONFIG 1 => CONFIG 2*/
 //    rewrite_active_pair(
@@ -123,6 +130,18 @@ int main() {
 //            &the_configuration->m_rules[0],
 //            ap_handler, NULL);
 
+    /* rewrite CONFIG 0 => CONFIG 2*/
+    struct ap the_ap;
+    rewrite_active_pair(
+            the_net,
+            aS, aP,
+            &the_configuration->m_rules[1],
+            ap_handler, &the_ap);
+    rewrite_active_pair(
+            the_net,
+            the_ap.a, the_ap.b,
+            &the_configuration->m_rules[0],
+            ap_handler, NULL);
     to_dot_net(stdout, the_net);
 
     //free the net
