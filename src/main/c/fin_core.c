@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <fin_core.h>
 #include <assert.h>
+#include <string.h>
 
 fin_name_instance_t *allocate_names(uint32_t number_of_names) {
     fin_name_instance_t *names = malloc(sizeof(fin_name_instance_t) * number_of_names);
@@ -245,6 +246,10 @@ fin_configuration_t *allocate_configuration(uint32_t declaration_count, uint32_t
         fprintf(stderr, "[%s,%d] Cannot allocate a configuration with %d agent types and %d rules", __FILE__, __LINE__, declaration_count, rule_count);
         exit(1);
     }
+    uint32_t capacity = 1<<10;
+    the_configuration->m_active_pairs.m_capacity = capacity;
+    the_configuration->m_active_pairs.m_set = malloc (2 * capacity * sizeof(fin_instance_t *));
+    the_configuration->m_active_pairs.m_sp = 0;
     return the_configuration;
 }
 
@@ -490,7 +495,7 @@ void rewrite_active_pair(
         fin_instance_t *in_second,
         fin_rule_t *in_rule,
         fin_active_pair_handler_t in_ap_handler,
-        void* opaque) {
+        fin_configuration_t * configuration) {
     if (io_net == NULL || in_first == NULL || in_second == NULL || in_rule == NULL) return;
     //match the active pair instances with the pattern instances
     fin_instance_t *the_first_pattern = NULL;
@@ -522,7 +527,7 @@ void rewrite_active_pair(
         connect(p1, p2);
 
         if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2) && in_ap_handler != NULL) {
-            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), opaque);
+            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), configuration);
         }
     }
 
@@ -537,7 +542,7 @@ void rewrite_active_pair(
         connect(p1, p2);
 
         if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2) && in_ap_handler != NULL) {
-            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), opaque);
+            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), configuration);
         }
     }
 
@@ -577,26 +582,41 @@ fin_rule_t *matching_rule(
 }
 
 
-void active_pair_handler(fin_instance_t *a, fin_instance_t *b, void *data) {
-    fin_active_pairs_t* active_pairs = (fin_active_pairs_t *)data;
-    active_pairs->m_set[active_pairs->m_sp][0] = a;
-    active_pairs->m_set[active_pairs->m_sp][1] = b;
-    active_pairs->m_sp++;
+void add_active_pair(fin_instance_t *a, fin_instance_t *b, fin_configuration_t *io_configuration) {
+    fin_active_pairs_t* active_pairs = &io_configuration->m_active_pairs;
+
+    if (active_pairs->m_sp == active_pairs->m_capacity) {
+        uint32_t capacity = active_pairs->m_capacity * 2;
+        fin_instance_t **bigger_set = malloc(2 * capacity * sizeof(fin_instance_t*));
+        if (bigger_set == NULL) {
+            fprintf(stderr, "[%s,%d] Cannot allocate a bigger set for the active pairs. ", __FILE__, __LINE__);
+            exit(1);
+        }
+        memcpy(bigger_set, active_pairs->m_set, active_pairs->m_capacity);
+        free(active_pairs->m_set);
+        active_pairs->m_capacity = capacity;
+        active_pairs->m_set = bigger_set;
+    }
+
+    active_pairs->m_set[active_pairs->m_sp++] = a;
+    active_pairs->m_set[active_pairs->m_sp++] = b;
 }
 fin_net_t *reduce(fin_configuration_t *io_configuration) {
-    fin_active_pairs_t active_pairs = io_configuration->m_active_pairs;
+    fin_active_pairs_t *active_pairs = &io_configuration->m_active_pairs;
 
     fin_net_t *the_net = io_configuration->m_net;
 
-    while (active_pairs.m_sp != 0) {
-        fin_instance_t** the_current_pair = active_pairs.m_set[--active_pairs.m_sp];
-        fin_rule_t *the_rewrite_rule = matching_rule(io_configuration, the_current_pair[0], the_current_pair[1]);
+    while (active_pairs->m_sp != 0) {
+        fin_instance_t* the_a = active_pairs->m_set[--active_pairs->m_sp];
+        fin_instance_t* the_b = active_pairs->m_set[--active_pairs->m_sp];
+
+        fin_rule_t *the_rewrite_rule = matching_rule(io_configuration, the_a, the_b);
         fprintf(stdout, "rewrite with [%s,%s]\n", the_rewrite_rule->m_lhs->m_instances->m_declaration->m_name, the_rewrite_rule->m_lhs->m_instances->m_next->m_declaration->m_name);
         rewrite_active_pair(
                 the_net,
-                the_current_pair[0], the_current_pair[1],
-                matching_rule(io_configuration, the_current_pair[0], the_current_pair[1]),
-                active_pair_handler, &active_pairs);
+                the_a, the_b,
+                the_rewrite_rule,
+                add_active_pair, io_configuration);
     }
     to_dot_net(stdout, the_net);
 }

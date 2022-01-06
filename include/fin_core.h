@@ -30,6 +30,12 @@ struct fin_instance_s {
     fin_port_t m_connections[]; // a table of m_declaration->m_arity+1 pointers
 };
 
+struct fin_active_pairs_s {
+    uint32_t m_capacity;
+    fin_instance_t **m_set;
+    uint32_t m_sp;
+};
+typedef struct fin_active_pairs_s fin_active_pairs_t;
 
 typedef void *fin_name_instance_t;
 struct fin_net_s {
@@ -44,12 +50,6 @@ struct fin_rule_s {
     fin_net_t *m_rhs;
 };
 typedef struct fin_rule_s fin_rule_t;
-
-struct fin_active_pairs_s {
-    fin_instance_t *m_set[100][2];
-    uint32_t m_sp;
-};
-typedef struct fin_active_pairs_s fin_active_pairs_t;
 
 struct fin_configuration_s {
     uint32_t m_declaration_count;
@@ -94,14 +94,14 @@ fin_port_t *get_port(fin_instance_t *instance, uint32_t port_id);
 
 void connect(fin_port_t *port1, fin_port_t *port2);
 
-typedef void (*fin_active_pair_handler_t)(fin_instance_t*, fin_instance_t*, void*);
+typedef void (*fin_active_pair_handler_t)(fin_instance_t*, fin_instance_t*, fin_configuration_t *);
 void rewrite_active_pair(
         fin_net_t *io_net,
         fin_instance_t *in_first,
         fin_instance_t *in_second,
         fin_rule_t *in_rule,
         fin_active_pair_handler_t in_user_handler,
-        void* opaque);
+        fin_configuration_t * opaque);
 
 fin_rule_t *matching_rule(
         fin_configuration_t *in_configuration,
@@ -109,5 +109,7 @@ fin_rule_t *matching_rule(
         fin_instance_t *in_second);
 
 fin_net_t *reduce(fin_configuration_t *io_configuration);
+
+void add_active_pair(fin_instance_t *a, fin_instance_t *b, fin_configuration_t *io_configuration);
 
 #endif //FAST_INTERACTION_NETS_FIN_CORE_H

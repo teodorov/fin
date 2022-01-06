@@ -89,9 +89,7 @@ int main() {
     connect(get_port(aZ, 0), get_port(cS, 1));
     connect(get_port(cS, 0), get_port(aS, 1));
     connect(get_port(aS, 0), get_port(aP, 0));
-    the_configuration->m_active_pairs.m_set[the_configuration->m_active_pairs.m_sp][0] = aS;
-    the_configuration->m_active_pairs.m_set[the_configuration->m_active_pairs.m_sp][1] = aP;
-    the_configuration->m_active_pairs.m_sp++;
+    add_active_pair(aS, aP, the_configuration);
 
     connect(get_port(bZ, 0), get_port(bS, 1));
     connect(get_port(bS, 0), get_port(aP, 1));
