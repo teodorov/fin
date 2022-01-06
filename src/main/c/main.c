@@ -5,49 +5,21 @@
 #include <fin_core.h>
 #include <peano.h>
 
-
-struct ap {
-    fin_instance_t *a;
-    fin_instance_t *b;
-};
-
-void ap_handler(fin_instance_t *a, fin_instance_t *b, void *data) {
-    char *x = a->m_declaration->m_name;
-    char *y = b->m_declaration->m_name;
-    fprintf(stdout, "CB active pair %s(%p)-%s(%p)\n", x, &a->m_connections[0], y, &b->m_connections[0]);
-    if (data == NULL) return;
-    ((struct ap*) data)->a = a;
-    ((struct ap*) data)->b = b;
-}
-
 int main() {
-    fin_configuration_t *the_configuration = peano_add_2_1();
-    /*reduce*/
-    reduce(the_configuration);
+    fin_environment_t *the_addition_environment = peano_addition();
 
-    //free the net
-    free_net(the_configuration->m_net);
-    //free the configuration
-    free_configuration(the_configuration);
-
-//    the_configuration = peano_addition();
-//    the_configuration->m_net = allocate_net(1);
-//    fin_instance_t *theS = add_instance(the_configuration->m_net, allocate_instance(find_agent(the_configuration, "S")));
-//    connect(get_name(the_configuration->m_net, 0), get_port(theS, 0));
-//
-//    add_net(the_configuration, peano_number(the_configuration, 2)->m_net, 1, get_port(theS, 1), 0);
+//    fin_net_t *the_add_2_1 = peano_add_2_1(the_addition_environment);
+//    reduce(the_addition_environment, the_add_2_1);
+//    to_dot_net(stdout, the_add_2_1);
+//    free_net(the_add_2_1);
 
 
-    the_configuration = peano_add(NULL, 2, 2);
+    fin_net_t *the_add = peano_add(the_addition_environment, 10000, 200);
+    reduce(the_addition_environment, the_add);
+//    to_dot_net(stdout, the_add);
+    free_net(the_add);
 
-
-    reduce(the_configuration);
-
-    to_dot_net(stdout, the_configuration->m_net);
-
-//    the_configuration = add_net(the_configuration, peano_number(10)->m_net, 0);
-//    to_dot_net(stdout, the_configuration->m_net);
-
+    free_environment(the_addition_environment);
     return 0;
 }
 

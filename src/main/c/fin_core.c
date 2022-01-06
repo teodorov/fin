@@ -115,6 +115,11 @@ fin_net_t *allocate_net(uint32_t names_size) {
 
     the_net->m_instances = NULL;
 
+    uint32_t capacity = 1<<10;
+    the_net->m_active_pairs.m_capacity = capacity;
+    the_net->m_active_pairs.m_set = malloc (2 * capacity * sizeof(fin_instance_t *));
+    the_net->m_active_pairs.m_sp = 0;
+
     return the_net;
 }
 
@@ -135,7 +140,7 @@ void free_net(fin_net_t *net) {
             free_instance(tmp);
         }
     }
-
+    free(net->m_active_pairs.m_set);
     free(net);
 }
 
@@ -228,51 +233,46 @@ void remove_and_free_instance(fin_net_t *io_net, fin_instance_t *instance) {
 //    //TODO
 //}
 
-fin_configuration_t *allocate_configuration(uint32_t declaration_count, uint32_t rule_count) {
-    fin_configuration_t *the_configuration = malloc(sizeof(fin_configuration_t));
-    if (the_configuration == NULL) {
+fin_environment_t *allocate_environment(uint32_t declaration_count, uint32_t rule_count) {
+    fin_environment_t *the_environment = malloc(sizeof(fin_environment_t));
+    if (the_environment == NULL) {
         fprintf(stderr, "[%s,%d] Cannot allocate a configuration with %d agent types and %d rules", __FILE__, __LINE__, declaration_count, rule_count);
         exit(1);
     }
 
-    the_configuration->m_declaration_count = declaration_count;
-    the_configuration->m_rule_count = rule_count;
-    the_configuration->m_agent_declarations = malloc(sizeof(fin_agent_declaration_t) * declaration_count);
-    if (the_configuration->m_agent_declarations == NULL) {
+    the_environment->m_declaration_count = declaration_count;
+    the_environment->m_rule_count = rule_count;
+    the_environment->m_agent_declarations = malloc(sizeof(fin_agent_declaration_t) * declaration_count);
+    if (the_environment->m_agent_declarations == NULL) {
         fprintf(stderr, "[%s,%d] Cannot allocate a configuration with %d agent types and %d rules", __FILE__, __LINE__, declaration_count, rule_count);
         exit(1);
     }
-    the_configuration->m_rules = malloc(sizeof(fin_rule_t) * rule_count);
-    if (the_configuration->m_rules == NULL) {
+    the_environment->m_rules = malloc(sizeof(fin_rule_t) * rule_count);
+    if (the_environment->m_rules == NULL) {
         fprintf(stderr, "[%s,%d] Cannot allocate a configuration with %d agent types and %d rules", __FILE__, __LINE__, declaration_count, rule_count);
         exit(1);
     }
-    uint32_t capacity = 1<<10;
-    the_configuration->m_active_pairs.m_capacity = capacity;
-    the_configuration->m_active_pairs.m_set = malloc (2 * capacity * sizeof(fin_instance_t *));
-    the_configuration->m_active_pairs.m_sp = 0;
-    return the_configuration;
+    return the_environment;
 }
 
-void free_configuration(fin_configuration_t *configuration) {
-    if (configuration == NULL) return;
-    if (configuration->m_agent_declarations != NULL) {
-        free(configuration->m_agent_declarations);
+void free_environment(fin_environment_t *io_environment) {
+    if (io_environment == NULL) return;
+    if (io_environment->m_agent_declarations != NULL) {
+        free(io_environment->m_agent_declarations);
     }
-    if (configuration->m_rules != NULL) {
-        for (int i = 0; i<configuration->m_rule_count; i++) {
-            free_net(configuration->m_rules[i].m_lhs);
-            free_net(configuration->m_rules[i].m_rhs);
+    if (io_environment->m_rules != NULL) {
+        for (int i = 0; i < io_environment->m_rule_count; i++) {
+            free_net(io_environment->m_rules[i].m_lhs);
+            free_net(io_environment->m_rules[i].m_rhs);
         }
-        free(configuration->m_rules);
+        free(io_environment->m_rules);
     }
-    free(configuration->m_active_pairs.m_set);
-    free(configuration);
+    free(io_environment);
 }
 
-fin_agent_declaration_t *find_agent(fin_configuration_t *in_configuration, char *in_name) {
-    for (int i = 0; i < in_configuration->m_declaration_count; i++) {
-        fin_agent_declaration_t *agent = &in_configuration->m_agent_declarations[i];
+fin_agent_declaration_t *find_agent(fin_environment_t *in_environment, char *in_name) {
+    for (int i = 0; i < in_environment->m_declaration_count; i++) {
+        fin_agent_declaration_t *agent = &in_environment->m_agent_declarations[i];
         if (strcmp(agent->m_name, in_name) == 0) {
             return agent;
         }
@@ -280,39 +280,37 @@ fin_agent_declaration_t *find_agent(fin_configuration_t *in_configuration, char 
     return NULL;
 }
 
-fin_configuration_t *add_net(fin_configuration_t *io_configuration, fin_net_t *io_net, int size, ...) {
+fin_net_t *add_net(fin_net_t *io_target_net, fin_net_t *io_net, int size, ...) {
     if (io_net == NULL) {
-        return io_configuration;
+        return io_target_net;
     }
-    if (io_configuration->m_net == NULL) {
-        io_configuration->m_net = io_net;
-        return io_configuration;
+    if (io_target_net == NULL) {
+        return io_net;
     }
 
     //add the instances side by side
     if (size == 0) {
-        fin_net_t * the_net = allocate_net(io_configuration->m_net->m_names_size + io_net->m_names_size);
+        fin_net_t * the_net = allocate_net(io_target_net->m_names_size + io_net->m_names_size);
         uint32_t idx = 0;
-        for (int i = 0; i < io_configuration->m_net->m_names_size; i++) {
-            connect(get_name(the_net, idx++), *get_name(io_configuration->m_net, i));
+        for (int i = 0; i < io_target_net->m_names_size; i++) {
+            connect(get_name(the_net, idx++), *get_name(io_target_net, i));
         }
         for (int i = 0; i < io_net->m_names_size; i++) {
             connect(get_name(the_net, idx++), *get_name(io_net, i));
         }
-        while (io_configuration->m_net->m_instances != NULL) {
-            fin_instance_t *to_add = io_configuration->m_net->m_instances;
-            io_configuration->m_net->m_instances = io_configuration->m_net->m_instances->m_next;
+        while (io_target_net->m_instances != NULL) {
+            fin_instance_t *to_add = io_target_net->m_instances;
+            io_target_net->m_instances = io_target_net->m_instances->m_next;
             add_instance(the_net, to_add);
         }
-        free_net(io_configuration->m_net);
+        free_net(io_target_net);
         while (io_net->m_instances != NULL) {
             fin_instance_t *to_add = io_net->m_instances;
             io_net->m_instances = io_net->m_instances->m_next;
             add_instance(the_net, to_add);
         }
         free_net(io_net);
-        io_configuration->m_net = the_net;
-        return io_configuration;
+        return the_net;
     }
 
     fin_port_t ports[size];
@@ -338,20 +336,27 @@ fin_configuration_t *add_net(fin_configuration_t *io_configuration, fin_net_t *i
             connect(p1, p2);
 
             if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
-                add_active_pair(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), io_configuration);
+                add_active_pair(io_target_net, PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2));
             }
         }
         while (io_net->m_instances != NULL) {
             fin_instance_t *to_add = io_net->m_instances;
             io_net->m_instances = io_net->m_instances->m_next;
-            add_instance(io_configuration->m_net, to_add);
+            add_instance(io_target_net, to_add);
+        }
+        //copy the active pairs from the donor net
+        while (io_net->m_active_pairs.m_sp > 0) {
+            fin_instance_t* the_a = io_net->m_active_pairs.m_set[--io_net->m_active_pairs.m_sp];
+            fin_instance_t* the_b = io_net->m_active_pairs.m_set[--io_net->m_active_pairs.m_sp];
+
+            add_active_pair(io_target_net, the_a, the_b);
         }
         free_net(io_net);
-        return io_configuration;
+        return io_target_net;
     }
     //TODO: connect the names mapped and extend the names array in io->configuration->m_net
 
-    return io_configuration;
+    return io_target_net;
 }
 
 int32_t find_name_index(fin_net_t *net, fin_port_t port) {
@@ -579,9 +584,7 @@ void rewrite_active_pair(
         fin_net_t *io_net,
         fin_instance_t *in_first,
         fin_instance_t *in_second,
-        fin_rule_t *in_rule,
-        fin_active_pair_handler_t in_ap_handler,
-        fin_configuration_t * configuration) {
+        fin_rule_t *in_rule) {
     if (io_net == NULL || in_first == NULL || in_second == NULL || in_rule == NULL) return;
     //match the active pair instances with the pattern instances
     fin_instance_t *the_first_pattern = NULL;
@@ -612,8 +615,8 @@ void rewrite_active_pair(
 
         connect(p1, p2);
 
-        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2) && in_ap_handler != NULL) {
-            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), configuration);
+        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
+            add_active_pair(io_net, PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2));
         }
     }
 
@@ -627,8 +630,8 @@ void rewrite_active_pair(
         fin_port_t *p2 = *get_name(the_target, index);
         connect(p1, p2);
 
-        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2) && in_ap_handler != NULL) {
-            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), configuration);
+        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
+            add_active_pair(io_net, PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2));
         }
     }
 
@@ -648,12 +651,12 @@ void rewrite_active_pair(
 
 //TODO: use a minimal perfect hash to find the rules, https://gist.github.com/smhanov/94230b422c2100ae4218
 fin_rule_t *matching_rule(
-        fin_configuration_t *in_configuration,
+        fin_environment_t *in_environment,
         fin_instance_t *in_first,
         fin_instance_t *in_second) {
 
-    for (int i = 0; i<in_configuration->m_rule_count; i++) {
-        fin_rule_t *the_rule = &in_configuration->m_rules[i];
+    for (int i = 0; i < in_environment->m_rule_count; i++) {
+        fin_rule_t *the_rule = &in_environment->m_rules[i];
         char matching = 0;
         fin_instance_t *current = the_rule->m_lhs->m_instances;
         while (current != NULL) {
@@ -667,8 +670,8 @@ fin_rule_t *matching_rule(
 }
 
 
-void add_active_pair(fin_instance_t *a, fin_instance_t *b, fin_configuration_t *io_configuration) {
-    fin_active_pairs_t* active_pairs = &io_configuration->m_active_pairs;
+void add_active_pair(fin_net_t *io_net, fin_instance_t *a, fin_instance_t *b) {
+    fin_active_pairs_t* active_pairs = &io_net->m_active_pairs;
 
     if (active_pairs->m_sp == active_pairs->m_capacity) {
         uint32_t capacity = active_pairs->m_capacity * 2;
@@ -686,24 +689,21 @@ void add_active_pair(fin_instance_t *a, fin_instance_t *b, fin_configuration_t *
     active_pairs->m_set[active_pairs->m_sp++] = a;
     active_pairs->m_set[active_pairs->m_sp++] = b;
 }
-fin_net_t *reduce(fin_configuration_t *io_configuration) {
-    fin_active_pairs_t *active_pairs = &io_configuration->m_active_pairs;
-
-    fin_net_t *the_net = io_configuration->m_net;
+fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
+    fin_active_pairs_t *active_pairs = &io_net->m_active_pairs;
 
     while (active_pairs->m_sp != 0) {
         fin_instance_t* the_a = active_pairs->m_set[--active_pairs->m_sp];
         fin_instance_t* the_b = active_pairs->m_set[--active_pairs->m_sp];
 
-        fin_rule_t *the_rewrite_rule = matching_rule(io_configuration, the_a, the_b);
-        fprintf(stdout, "rewrite with [%s,%s]\n", the_rewrite_rule->m_lhs->m_instances->m_declaration->m_name, the_rewrite_rule->m_lhs->m_instances->m_next->m_declaration->m_name);
+        fin_rule_t *the_rewrite_rule = matching_rule(io_environment, the_a, the_b);
+//        fprintf(stdout, "rewrite with [%s,%s]\n", the_rewrite_rule->m_lhs->m_instances->m_declaration->m_name, the_rewrite_rule->m_lhs->m_instances->m_next->m_declaration->m_name);
         rewrite_active_pair(
-                the_net,
+                io_net,
                 the_a, the_b,
-                the_rewrite_rule,
-                add_active_pair, io_configuration);
+                the_rewrite_rule);
     }
-    to_dot_net(stdout, the_net);
+    return io_net;
 }
 
 
