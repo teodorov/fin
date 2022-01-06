@@ -64,6 +64,8 @@ typedef struct fin_configuration_s fin_configuration_t;
 fin_configuration_t *allocate_configuration(uint32_t declaration_count, uint32_t rule_count);
 void free_configuration(fin_configuration_t *configuration);
 
+fin_agent_declaration_t *find_agent(fin_configuration_t *in_configuration, char *name);
+
 // operation on nets
 fin_net_t *allocate_net(uint32_t names_size);
 

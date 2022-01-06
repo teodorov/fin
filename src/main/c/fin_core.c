@@ -265,7 +265,18 @@ void free_configuration(fin_configuration_t *configuration) {
         }
         free(configuration->m_rules);
     }
+    free(configuration->m_active_pairs.m_set);
     free(configuration);
+}
+
+fin_agent_declaration_t *find_agent(fin_configuration_t *in_configuration, char *in_name) {
+    for (int i = 0; i < in_configuration->m_declaration_count; i++) {
+        fin_agent_declaration_t *agent = &in_configuration->m_agent_declarations[i];
+        if (strcmp(agent->m_name, in_name) == 0) {
+            return agent;
+        }
+    }
+    return NULL;
 }
 
 int32_t find_name_index(fin_net_t *net, fin_port_t port) {
