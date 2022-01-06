@@ -30,8 +30,23 @@ int main() {
     //free the configuration
     free_configuration(the_configuration);
 
-    the_configuration = peano_number(10);
+//    the_configuration = peano_addition();
+//    the_configuration->m_net = allocate_net(1);
+//    fin_instance_t *theS = add_instance(the_configuration->m_net, allocate_instance(find_agent(the_configuration, "S")));
+//    connect(get_name(the_configuration->m_net, 0), get_port(theS, 0));
+//
+//    add_net(the_configuration, peano_number(the_configuration, 2)->m_net, 1, get_port(theS, 1), 0);
+
+
+    the_configuration = peano_add(NULL, 2, 2);
+
+
+    reduce(the_configuration);
+
     to_dot_net(stdout, the_configuration->m_net);
+
+//    the_configuration = add_net(the_configuration, peano_number(10)->m_net, 0);
+//    to_dot_net(stdout, the_configuration->m_net);
 
     return 0;
 }

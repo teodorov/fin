@@ -66,6 +66,8 @@ void free_configuration(fin_configuration_t *configuration);
 
 fin_agent_declaration_t *find_agent(fin_configuration_t *in_configuration, char *name);
 
+fin_configuration_t *add_net(fin_configuration_t *io_configuration, fin_net_t *in_net, int size, ...);
+
 // operation on nets
 fin_net_t *allocate_net(uint32_t names_size);
 

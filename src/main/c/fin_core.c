@@ -7,6 +7,7 @@
 #include <fin_core.h>
 #include <assert.h>
 #include <string.h>
+#include <stdarg.h>
 
 fin_name_instance_t *allocate_names(uint32_t number_of_names) {
     fin_name_instance_t *names = malloc(sizeof(fin_name_instance_t) * number_of_names);
@@ -277,6 +278,80 @@ fin_agent_declaration_t *find_agent(fin_configuration_t *in_configuration, char 
         }
     }
     return NULL;
+}
+
+fin_configuration_t *add_net(fin_configuration_t *io_configuration, fin_net_t *io_net, int size, ...) {
+    if (io_net == NULL) {
+        return io_configuration;
+    }
+    if (io_configuration->m_net == NULL) {
+        io_configuration->m_net = io_net;
+        return io_configuration;
+    }
+
+    //add the instances side by side
+    if (size == 0) {
+        fin_net_t * the_net = allocate_net(io_configuration->m_net->m_names_size + io_net->m_names_size);
+        uint32_t idx = 0;
+        for (int i = 0; i < io_configuration->m_net->m_names_size; i++) {
+            connect(get_name(the_net, idx++), *get_name(io_configuration->m_net, i));
+        }
+        for (int i = 0; i < io_net->m_names_size; i++) {
+            connect(get_name(the_net, idx++), *get_name(io_net, i));
+        }
+        while (io_configuration->m_net->m_instances != NULL) {
+            fin_instance_t *to_add = io_configuration->m_net->m_instances;
+            io_configuration->m_net->m_instances = io_configuration->m_net->m_instances->m_next;
+            add_instance(the_net, to_add);
+        }
+        free_net(io_configuration->m_net);
+        while (io_net->m_instances != NULL) {
+            fin_instance_t *to_add = io_net->m_instances;
+            io_net->m_instances = io_net->m_instances->m_next;
+            add_instance(the_net, to_add);
+        }
+        free_net(io_net);
+        io_configuration->m_net = the_net;
+        return io_configuration;
+    }
+
+    fin_port_t ports[size];
+    uint32_t   names[size];
+
+    va_list args;
+    va_start(args, size);
+
+    for (int i = 0; i < size; i++) {
+        fin_port_t port = va_arg(args, fin_port_t);
+        uint32_t   name = va_arg(args, uint32_t);
+        ports [i] = port;
+        names [i] = name;
+    }
+
+    va_end(args);
+
+    //all the names will be connected
+    if (size == io_net->m_names_size) {
+        for (int i = 0; i<size; i++) {
+            fin_port_t p1 = ports[i];
+            fin_port_t p2 = *get_name(io_net, names[i]);
+            connect(p1, p2);
+
+            if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
+                add_active_pair(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), io_configuration);
+            }
+        }
+        while (io_net->m_instances != NULL) {
+            fin_instance_t *to_add = io_net->m_instances;
+            io_net->m_instances = io_net->m_instances->m_next;
+            add_instance(io_configuration->m_net, to_add);
+        }
+        free_net(io_net);
+        return io_configuration;
+    }
+    //TODO: connect the names mapped and extend the names array in io->configuration->m_net
+
+    return io_configuration;
 }
 
 int32_t find_name_index(fin_net_t *net, fin_port_t port) {
@@ -566,7 +641,6 @@ void rewrite_active_pair(
         fin_instance_t *to_add = the_target->m_instances;
         the_target->m_instances = the_target->m_instances->m_next;
         add_instance(io_net, to_add);
-
     }
     //free the target
     free_net(the_target);

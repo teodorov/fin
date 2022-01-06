@@ -92,8 +92,11 @@ fin_configuration_t *peano_add_2_1() {
     return the_configuration;
 }
 
-fin_configuration_t *peano_number(uint32_t n) {
-    fin_configuration_t *the_configuration = peano_addition();
+fin_configuration_t *peano_number(fin_configuration_t *peano, uint32_t n) {
+    fin_configuration_t *the_configuration = peano;
+    if (the_configuration == NULL) {
+        the_configuration = peano_addition();
+    }
     fin_agent_declaration_t *theZ = find_agent(the_configuration, "Z");
     fin_agent_declaration_t *theS = find_agent(the_configuration, "S");
 
@@ -109,11 +112,19 @@ fin_configuration_t *peano_number(uint32_t n) {
     return the_configuration;
 }
 
-fin_configuration_t *peano_add(uint32_t n, uint32_t m) {
-    fin_configuration_t *the_configuration = peano_addition();
-    fin_agent_declaration_t *theZ = find_agent(the_configuration, "Z");
-    fin_agent_declaration_t *theS = find_agent(the_configuration, "S");
+fin_configuration_t *peano_add(fin_configuration_t *peano, uint32_t n, uint32_t m) {
+    fin_configuration_t *the_configuration = peano;
+    if (the_configuration == NULL) {
+        the_configuration = peano_addition();
+    }
     fin_agent_declaration_t *theP = find_agent(the_configuration, "+");
+
+    fin_net_t *the_net = the_configuration->m_net = allocate_net(1);
+    fin_instance_t *aP = add_instance(the_net, allocate_instance(theP));
+    connect(get_name(the_net, 0), get_port(aP, 2));
+
+    add_net(the_configuration, peano_number(peano, 2)->m_net, 1, get_port(aP, 0), 0);
+    add_net(the_configuration, peano_number(peano, 2)->m_net, 1, get_port(aP, 1), 0);
 
     return the_configuration;
 }
