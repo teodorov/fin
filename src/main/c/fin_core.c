@@ -522,6 +522,7 @@ resolve_pair_t *pop_vector(vector_t *vector) {
  * Implements the copy in a single pass, using an unresolved stack to store forward pointers.
  * */
 fin_net_t *copy_net(fin_net_t *in_net) {
+    if (in_net == NULL) return NULL;
     poor_hashmap_t *map = create_hashmap(100);
     vector_t *unresolved = create_vector(100);
 
@@ -602,6 +603,12 @@ void rewrite_active_pair(
     }
     //copy the target net from the rule
     fin_net_t* the_target = copy_net(in_rule->m_rhs);
+    if (the_target == NULL) {
+        assert (in_rule->m_lhs->m_names_size == 0);
+        remove_and_free_instance(io_net, in_first);
+        remove_and_free_instance(io_net, in_second);
+        return;
+    }
 
     //connect the io_net to the target rewrite
     uint32_t arity = in_first->m_declaration->m_arity;
