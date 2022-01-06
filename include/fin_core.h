@@ -45,12 +45,19 @@ struct fin_rule_s {
 };
 typedef struct fin_rule_s fin_rule_t;
 
+struct fin_active_pairs_s {
+    fin_instance_t *m_set[100][2];
+    uint32_t m_sp;
+};
+typedef struct fin_active_pairs_s fin_active_pairs_t;
+
 struct fin_configuration_s {
     uint32_t m_declaration_count;
     uint32_t m_rule_count;
     fin_agent_declaration_t *   m_agent_declarations;   //an array with the agent declarations inside
     fin_rule_t *                m_rules;                //an array with the rewrite rules inside
     fin_net_t  *                m_net;                  //a pointer towards the net that plays
+    fin_active_pairs_t          m_active_pairs;
 };
 typedef struct fin_configuration_s fin_configuration_t;
 
@@ -96,5 +103,11 @@ void rewrite_active_pair(
         fin_active_pair_handler_t in_user_handler,
         void* opaque);
 
+fin_rule_t *matching_rule(
+        fin_configuration_t *in_configuration,
+        fin_instance_t *in_first,
+        fin_instance_t *in_second);
+
+fin_net_t *reduce(fin_configuration_t *io_configuration);
 
 #endif //FAST_INTERACTION_NETS_FIN_CORE_H

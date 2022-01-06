@@ -484,8 +484,6 @@ fin_net_t *copy_net(fin_net_t *in_net) {
     return the_net;
 }
 
-
-
 void rewrite_active_pair(
         fin_net_t *io_net,
         fin_instance_t *in_first,
@@ -493,19 +491,16 @@ void rewrite_active_pair(
         fin_rule_t *in_rule,
         fin_active_pair_handler_t in_ap_handler,
         void* opaque) {
-    fin_instance_t *the_first  = in_first;
-    fin_instance_t *the_second = in_second;
-
-//    print_net(io_net);
-
+    if (io_net == NULL || in_first == NULL || in_second == NULL || in_rule == NULL) return;
+    //match the active pair instances with the pattern instances
     fin_instance_t *the_first_pattern = NULL;
     fin_instance_t *the_second_pattern = NULL;
     fin_instance_t *current = in_rule->m_lhs->m_instances;
     while (current != NULL) {
-        if (current->m_declaration == the_first->m_declaration) {
+        if (current->m_declaration == in_first->m_declaration) {
             the_first_pattern = current;
             if (the_second_pattern != NULL) break;
-        } else if (current->m_declaration == the_second->m_declaration) {
+        } else if (current->m_declaration == in_second->m_declaration) {
             the_second_pattern = current;
             if (the_first_pattern != NULL) break;
         }
@@ -514,43 +509,41 @@ void rewrite_active_pair(
     //copy the target net from the rule
     fin_net_t* the_target = copy_net(in_rule->m_rhs);
 
-    //connect the io_net to the rewrite
-    uint32_t arity = the_first->m_declaration->m_arity;
+    //connect the io_net to the target rewrite
+    uint32_t arity = in_first->m_declaration->m_arity;
     for (int i=1; i<=arity; i++) {
         fin_port_t port = GET_POINTER(the_first_pattern->m_connections[i]);
         //TODO: do this without finding the index ? the pattern instances should be ordered, and the names also
         int32_t index = find_name_index(in_rule->m_lhs, port);
 
-        fin_port_t *p1 = the_first->m_connections[i];
+        fin_port_t *p1 = in_first->m_connections[i];
         fin_port_t *p2 = *get_name(the_target, index);
 
         connect(p1, p2);
 
-        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
+        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2) && in_ap_handler != NULL) {
             in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), opaque);
         }
     }
 
-    arity = the_second->m_declaration->m_arity;
+    arity = in_second->m_declaration->m_arity;
     for (int i=1; i<=arity; i++) {
         fin_port_t port = GET_POINTER(the_second_pattern->m_connections[i]);
         //TODO: do this without finding the index ? the pattern instances should be ordered, and the names also
         int32_t index = find_name_index(in_rule->m_lhs, port);
 
-        fin_port_t *p1 = the_second->m_connections[i];
+        fin_port_t *p1 = in_second->m_connections[i];
         fin_port_t *p2 = *get_name(the_target, index);
         connect(p1, p2);
 
-        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2)) {
-            char *x = PRINCIPAL2INSTANCE(p1)->m_declaration->m_name;
-            char *y = PRINCIPAL2INSTANCE(p2)->m_declaration->m_name;
-            fprintf(stdout, "active pair %s(%p)-%s(%p)\n", x, p1, y,p2);
+        if (IS_PRINCIPAL(p1) && IS_PRINCIPAL(p2) && in_ap_handler != NULL) {
+            in_ap_handler(PRINCIPAL2INSTANCE(p1), PRINCIPAL2INSTANCE(p2), opaque);
         }
     }
 
     //remove and free the matched instances and insert the new ones
-    remove_and_free_instance(io_net, the_first);
-    remove_and_free_instance(io_net, the_second);
+    remove_and_free_instance(io_net, in_first);
+    remove_and_free_instance(io_net, in_second);
 
     //add the instances from the target to the net being rewritten (io_net)
     while (the_target->m_instances != NULL) {
@@ -561,10 +554,51 @@ void rewrite_active_pair(
     }
     //free the target
     free_net(the_target);
-
-//    print_net(io_net);
-    //TODO: need to detect the apparition of a new active pair.
 }
 
+//TODO: use a minimal perfect hash to find the rules, https://gist.github.com/smhanov/94230b422c2100ae4218
+fin_rule_t *matching_rule(
+        fin_configuration_t *in_configuration,
+        fin_instance_t *in_first,
+        fin_instance_t *in_second) {
+
+    for (int i = 0; i<in_configuration->m_rule_count; i++) {
+        fin_rule_t *the_rule = &in_configuration->m_rules[i];
+        char matching = 0;
+        fin_instance_t *current = the_rule->m_lhs->m_instances;
+        while (current != NULL) {
+            if (current->m_declaration == in_first->m_declaration) matching++;
+            if (current->m_declaration == in_second->m_declaration) matching++;
+            if (matching == 2) return the_rule;
+            current = current->m_next;
+        }
+    }
+    return NULL;
+}
+
+
+void active_pair_handler(fin_instance_t *a, fin_instance_t *b, void *data) {
+    fin_active_pairs_t* active_pairs = (fin_active_pairs_t *)data;
+    active_pairs->m_set[active_pairs->m_sp][0] = a;
+    active_pairs->m_set[active_pairs->m_sp][1] = b;
+    active_pairs->m_sp++;
+}
+fin_net_t *reduce(fin_configuration_t *io_configuration) {
+    fin_active_pairs_t active_pairs = io_configuration->m_active_pairs;
+
+    fin_net_t *the_net = io_configuration->m_net;
+
+    while (active_pairs.m_sp != 0) {
+        fin_instance_t** the_current_pair = active_pairs.m_set[--active_pairs.m_sp];
+        fin_rule_t *the_rewrite_rule = matching_rule(io_configuration, the_current_pair[0], the_current_pair[1]);
+        fprintf(stdout, "rewrite with [%s,%s]\n", the_rewrite_rule->m_lhs->m_instances->m_declaration->m_name, the_rewrite_rule->m_lhs->m_instances->m_next->m_declaration->m_name);
+        rewrite_active_pair(
+                the_net,
+                the_current_pair[0], the_current_pair[1],
+                matching_rule(io_configuration, the_current_pair[0], the_current_pair[1]),
+                active_pair_handler, &active_pairs);
+    }
+    to_dot_net(stdout, the_net);
+}
 
 

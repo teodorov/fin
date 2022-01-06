@@ -82,10 +82,16 @@ int main() {
     fin_instance_t * bS = add_instance(the_net, allocate_instance(theS));
     fin_instance_t * aP = add_instance(the_net, allocate_instance(theP));
 
+    fin_instance_t *cS = add_instance(the_net, allocate_instance(theS));
+
     /*NET for config 0 -- BEGIN*/
     //connect the instances
-    connect(get_port(aZ, 0), get_port(aS, 1));
+    connect(get_port(aZ, 0), get_port(cS, 1));
+    connect(get_port(cS, 0), get_port(aS, 1));
     connect(get_port(aS, 0), get_port(aP, 0));
+    the_configuration->m_active_pairs.m_set[the_configuration->m_active_pairs.m_sp][0] = aS;
+    the_configuration->m_active_pairs.m_set[the_configuration->m_active_pairs.m_sp][1] = aP;
+    the_configuration->m_active_pairs.m_sp++;
 
     connect(get_port(bZ, 0), get_port(bS, 1));
     connect(get_port(bS, 0), get_port(aP, 1));
@@ -131,18 +137,21 @@ int main() {
 //            ap_handler, NULL);
 
     /* rewrite CONFIG 0 => CONFIG 2*/
-    struct ap the_ap;
-    rewrite_active_pair(
-            the_net,
-            aS, aP,
-            &the_configuration->m_rules[1],
-            ap_handler, &the_ap);
-    rewrite_active_pair(
-            the_net,
-            the_ap.a, the_ap.b,
-            &the_configuration->m_rules[0],
-            ap_handler, NULL);
-    to_dot_net(stdout, the_net);
+//    struct ap the_ap;
+//    rewrite_active_pair(
+//            the_net,
+//            aS, aP,
+//            matching_rule(the_configuration, aS, aP),
+//            ap_handler, &the_ap);
+//    rewrite_active_pair(
+//            the_net,
+//            the_ap.a, the_ap.b,
+//            matching_rule(the_configuration, the_ap.a, the_ap.b),
+//            ap_handler, NULL);
+//    to_dot_net(stdout, the_net);
+
+    /*reduce*/
+    reduce(the_configuration);
 
     //free the net
     free_net(the_net);
