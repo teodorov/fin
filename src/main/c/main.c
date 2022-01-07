@@ -7,16 +7,9 @@
 
 int main() {
 //    fin_environment_t *the_addition_environment = peano_addition_environment();
-
-//    fin_net_t *the_add_2_1 = peano_add_2_1(the_addition_environment);
-//    reduce(the_addition_environment, the_add_2_1);
-//    to_dot_net(stdout, the_add_2_1);
-//    free_net(the_add_2_1);
-
-
-//    fin_net_t *the_add = peano_add(the_addition_environment, 100, 10);
+//    fin_net_t *the_add = peano_add(the_addition_environment, 10, 10);
 //    reduce(the_addition_environment, the_add);
-////    to_dot_net(stdout, the_add);
+//    to_dot_net(stdout, the_add);
 //    free_net(the_add);
 //    free_environment(the_addition_environment);
 

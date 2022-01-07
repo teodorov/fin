@@ -13,4 +13,5 @@ META-INF
 plugin.properties
 plugin.xml
 /cmake-build-debug-coverage
-/cmake-build-release/CMakeFiles/3.21.1/CompilerIdC/a.out
+_build
+.vscode

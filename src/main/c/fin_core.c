@@ -64,7 +64,7 @@ fin_instance_t *allocate_instance(fin_agent_declaration_t *declaration) {
         fprintf(stderr, "[%s,%d] Cannot allocate instance for NULL", __FILE__, __LINE__);
         exit(1);
     }
-    fin_instance_t *the_instance = malloc(sizeof(fin_instance_t) + sizeof(void *) * declaration->m_arity + 1);
+    fin_instance_t *the_instance = malloc(sizeof(fin_instance_t) + sizeof(void *) * (declaration->m_arity + 1));
     if (the_instance == NULL) {
         fprintf(stderr, "[%s,%d] Cannot allocate instance for agent %s", __FILE__, __LINE__, declaration->m_name);
         exit(1);
@@ -726,12 +726,12 @@ fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
         }
         count++;
         if ((count % (1<<20)) == 0) {
-            fprintf(stdout, "\t%lld \trewrites\n", count);
+            fprintf(stdout, "\t%lu \trewrites\n", count);
         }
     }
-    fprintf(stdout, "TOTAL: %lld rewrites\n", count);
+    fprintf(stdout, "TOTAL: %lu rewrites\n", count);
     for (int i = 0; i<io_environment->m_rule_count; i++) {
-        fprintf(stdout, "[%s,%s]\t\t->\t%lld\n",
+        fprintf(stdout, "[%s,%s]\t\t->\t%lu\n",
                 io_environment->m_rules[i].m_lhs->m_instances->m_declaration->m_name,
                 io_environment->m_rules[i].m_lhs->m_instances->m_next->m_declaration->m_name,
                 matched_rules[i]);
