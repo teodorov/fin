@@ -13,21 +13,6 @@
 
 //TODO: maybe it is useful to implement an arity based block allocator, on free list of blocks for each arity
 
-
-//char first = 1;
-//void *fin_malloc(size_t size) {
-//    if (first) {
-//        memset(malloc_sizes, 0, sizeof(malloc_sizes));
-//        first = 0;
-//    }
-//    malloc_sizes[size]++;
-//#undef malloc
-//    extern void* malloc(size_t );
-//    void *ptr = malloc(size);
-//#define malloc fin_malloc
-//    return ptr;
-//}
-
 typedef struct mem_region_s mem_region_t;
 struct mem_region_s {
     size_t m_capacity;

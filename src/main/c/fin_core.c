@@ -743,10 +743,6 @@ fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
 
     fprintf(stdout, "The maximum size of the active pair stack was %u\n", active_pairs->m_maximum);
 
-
-//    for (int i = 0; i<1<<9; i++) {
-//        fprintf(stdout, "%d-> %llu\n", i, malloc_sizes[i]);
-//    }
     return io_net;
 }
 

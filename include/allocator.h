@@ -8,11 +8,11 @@
 #include <stdint.h>
 
 void *fin_malloc(size_t size);
-void	*fin_calloc(size_t count, size_t size);
-void fin_free(void *ptr);
-//uint64_t malloc_sizes[1 << 9];
-#define malloc fin_malloc
-#define calloc fin_calloc
-#define free fin_free
+void *fin_calloc(size_t count, size_t size);
+void  fin_free(void *ptr);
+
+//#define malloc fin_malloc
+//#define calloc fin_calloc
+//#define free fin_free
 
 #endif //FAST_INTERACTION_NETS_ALLOCATOR_H
