@@ -21,7 +21,7 @@ int main() {
 //    free_environment(the_addition_environment);
 
     fin_environment_t *the_peano_environment = peano_environment();
-    fin_net_t *the_mul = peano_mul(the_peano_environment, 1000, 1000);
+    fin_net_t *the_mul = peano_mul(the_peano_environment, 100, 100);
     reduce(the_peano_environment, the_mul);
 //    to_dot_net(stdout, the_mul);
     free_net(the_mul);

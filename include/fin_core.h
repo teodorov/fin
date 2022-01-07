@@ -104,7 +104,8 @@ void rewrite_active_pair(
 fin_rule_t *matching_rule(
         fin_environment_t *in_environment,
         fin_instance_t *in_first,
-        fin_instance_t *in_second);
+        fin_instance_t *in_second,
+        int *o_rule_idx);
 
 fin_net_t *reduce(fin_environment_t *in_environment, fin_net_t *io_net);
 

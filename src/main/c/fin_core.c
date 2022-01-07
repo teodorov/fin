@@ -661,7 +661,8 @@ void rewrite_active_pair(
 fin_rule_t *matching_rule(
         fin_environment_t *in_environment,
         fin_instance_t *in_first,
-        fin_instance_t *in_second) {
+        fin_instance_t *in_second,
+        int *o_rule_idx) {
 
     for (int i = 0; i < in_environment->m_rule_count; i++) {
         fin_rule_t *the_rule = &in_environment->m_rules[i];
@@ -670,7 +671,12 @@ fin_rule_t *matching_rule(
         while (current != NULL) {
             if (current->m_declaration == in_first->m_declaration) matching++;
             if (current->m_declaration == in_second->m_declaration) matching++;
-            if (matching == 2) return the_rule;
+            if (matching == 2) {
+                if (o_rule_idx != NULL) {
+                    *o_rule_idx = i;
+                }
+                return the_rule;
+            }
             current = current->m_next;
         }
     }
@@ -699,17 +705,36 @@ void add_active_pair(fin_net_t *io_net, fin_instance_t *a, fin_instance_t *b) {
 }
 fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
     fin_active_pairs_t *active_pairs = &io_net->m_active_pairs;
+    uint64_t count = 0;
+    uint64_t matched_rules[io_environment->m_rule_count];
+    memset(matched_rules, 0, sizeof(matched_rules));
 
     while (active_pairs->m_sp != 0) {
         fin_instance_t* the_a = active_pairs->m_set[--active_pairs->m_sp];
         fin_instance_t* the_b = active_pairs->m_set[--active_pairs->m_sp];
 
-        fin_rule_t *the_rewrite_rule = matching_rule(io_environment, the_a, the_b);
+        int matched_rule_idx = -1;
+        fin_rule_t *the_rewrite_rule = matching_rule(io_environment, the_a, the_b, &matched_rule_idx);
 //        fprintf(stdout, "rewrite with [%s,%s]\n", the_rewrite_rule->m_lhs->m_instances->m_declaration->m_name, the_rewrite_rule->m_lhs->m_instances->m_next->m_declaration->m_name);
         rewrite_active_pair(
                 io_net,
                 the_a, the_b,
                 the_rewrite_rule);
+
+        if (matched_rule_idx != -1) {
+            matched_rules[matched_rule_idx]++;
+        }
+        count++;
+        if ((count % (1<<20)) == 0) {
+            fprintf(stdout, "\t%lld \trewrites\n", count);
+        }
+    }
+    fprintf(stdout, "TOTAL: %lld rewrites\n", count);
+    for (int i = 0; i<io_environment->m_rule_count; i++) {
+        fprintf(stdout, "[%s,%s]\t\t->\t%lld\n",
+                io_environment->m_rules[i].m_lhs->m_instances->m_declaration->m_name,
+                io_environment->m_rules[i].m_lhs->m_instances->m_next->m_declaration->m_name,
+                matched_rules[i]);
     }
     return io_net;
 }
