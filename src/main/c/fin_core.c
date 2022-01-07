@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>
+#include <allocator.h>
 
 fin_name_instance_t *allocate_names(uint32_t number_of_names) {
     fin_name_instance_t *names = malloc(sizeof(fin_name_instance_t) * number_of_names);
@@ -729,18 +730,23 @@ fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
         }
         count++;
         if ((count % (1<<20)) == 0) {
-            fprintf(stdout, "\t%lu \trewrites\n", count);
+            fprintf(stdout, "\t%llu \trewrites\n", count);
         }
     }
-    fprintf(stdout, "TOTAL: %lu rewrites\n", count);
+    fprintf(stdout, "TOTAL: %llu rewrites\n", count);
     for (int i = 0; i<io_environment->m_rule_count; i++) {
-        fprintf(stdout, "[%s,%s]\t\t->\t%lu\n",
+        fprintf(stdout, "[%s,%s]\t\t->\t%llu\n",
                 io_environment->m_rules[i].m_lhs->m_instances->m_declaration->m_name,
                 io_environment->m_rules[i].m_lhs->m_instances->m_next->m_declaration->m_name,
                 matched_rules[i]);
     }
 
     fprintf(stdout, "The maximum size of the active pair stack was %u\n", active_pairs->m_maximum);
+
+
+//    for (int i = 0; i<1<<9; i++) {
+//        fprintf(stdout, "%d-> %llu\n", i, malloc_sizes[i]);
+//    }
     return io_net;
 }
 

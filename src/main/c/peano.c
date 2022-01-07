@@ -24,6 +24,7 @@ fin_net_t *peano_zero_plus_left(fin_environment_t *peano) {
     connect(get_port(z0, 0), get_port(p0, 0));
     connect(get_port(p0, 1), get_name(the_net, 0));
     connect(get_port(p0, 2), get_name(the_net, 1));
+
     return the_net;
 }
 
