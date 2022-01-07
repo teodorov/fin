@@ -498,6 +498,7 @@ vector_t *create_vector(uint32_t capacity) {
 
 void free_vector(vector_t *vector) {
     if (vector == NULL) return;
+    free(vector->m_data);
     free(vector);
 }
 

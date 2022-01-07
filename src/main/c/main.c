@@ -6,7 +6,7 @@
 #include <peano.h>
 
 int main() {
-    fin_environment_t *the_addition_environment = peano_addition_environment();
+//    fin_environment_t *the_addition_environment = peano_addition_environment();
 
 //    fin_net_t *the_add_2_1 = peano_add_2_1(the_addition_environment);
 //    reduce(the_addition_environment, the_add_2_1);
