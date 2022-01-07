@@ -34,6 +34,7 @@ struct fin_active_pairs_s {
     uint32_t m_capacity;
     fin_instance_t **m_set;
     uint32_t m_sp;
+    uint32_t m_maximum;
 };
 typedef struct fin_active_pairs_s fin_active_pairs_t;
 

@@ -115,7 +115,7 @@ fin_net_t *allocate_net(uint32_t names_size) {
 
     the_net->m_instances = NULL;
 
-    uint32_t capacity = 1<<10;
+    uint32_t capacity = 1<<4;
     the_net->m_active_pairs.m_capacity = capacity;
     the_net->m_active_pairs.m_set = malloc (2 * capacity * sizeof(fin_instance_t *));
     the_net->m_active_pairs.m_sp = 0;
@@ -524,8 +524,8 @@ resolve_pair_t *pop_vector(vector_t *vector) {
  * */
 fin_net_t *copy_net(fin_net_t *in_net) {
     if (in_net == NULL) return NULL;
-    poor_hashmap_t *map = create_hashmap(100);
-    vector_t *unresolved = create_vector(100);
+    poor_hashmap_t *map = create_hashmap(20);
+    vector_t *unresolved = create_vector(10);
 
     fin_net_t *the_net = allocate_net(in_net->m_names_size);
 
@@ -683,7 +683,6 @@ fin_rule_t *matching_rule(
     return NULL;
 }
 
-
 void add_active_pair(fin_net_t *io_net, fin_instance_t *a, fin_instance_t *b) {
     fin_active_pairs_t* active_pairs = &io_net->m_active_pairs;
 
@@ -698,10 +697,14 @@ void add_active_pair(fin_net_t *io_net, fin_instance_t *a, fin_instance_t *b) {
         free(active_pairs->m_set);
         active_pairs->m_capacity = capacity;
         active_pairs->m_set = bigger_set;
+        fprintf(stdout, "active_pair stack grown to %u\n", capacity);
     }
 
     active_pairs->m_set[active_pairs->m_sp++] = a;
     active_pairs->m_set[active_pairs->m_sp++] = b;
+    if (active_pairs->m_maximum < active_pairs->m_sp) {
+        active_pairs->m_maximum = active_pairs->m_sp;
+    }
 }
 fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
     fin_active_pairs_t *active_pairs = &io_net->m_active_pairs;
@@ -736,6 +739,8 @@ fin_net_t *reduce(fin_environment_t *io_environment, fin_net_t *io_net) {
                 io_environment->m_rules[i].m_lhs->m_instances->m_next->m_declaration->m_name,
                 matched_rules[i]);
     }
+
+    fprintf(stdout, "The maximum size of the active pair stack was %u\n", active_pairs->m_maximum);
     return io_net;
 }
 
