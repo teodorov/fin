@@ -7,10 +7,15 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <allocator.h>
+#define USE_ALLOCATOR 1
 
 struct fin_agent_declaration_s {
     char *m_name;     //the name of the agent
     uint32_t m_arity;    //the arity of the agent (number of auxiliary ports)
+#ifdef USE_ALLOCATOR
+    mem_region_t *m_allocator;
+#endif
 };
 typedef struct fin_agent_declaration_s fin_agent_declaration_t;
 
@@ -64,6 +69,7 @@ typedef struct fin_environment_s fin_environment_t;
 fin_environment_t *allocate_environment(uint32_t declaration_count, uint32_t rule_count);
 void free_environment(fin_environment_t *io_environment);
 
+void add_agent(fin_environment_t *io_environment, int idx, char* name, uint32_t arity);
 fin_agent_declaration_t *find_agent(fin_environment_t *in_environment, char *name);
 
 fin_net_t *add_net(fin_net_t *target_net, fin_net_t *io_net, int size, ...);

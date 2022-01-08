@@ -15,7 +15,7 @@ int main() {
 //    free_environment(the_addition_environment);
 
     fin_environment_t *the_peano_environment = peano_environment();
-    fin_net_t *the_mul = peano_mul(the_peano_environment, 200, 50);
+    fin_net_t *the_mul = peano_mul(the_peano_environment, 400, 200);
 
     clock_t start = clock();
 

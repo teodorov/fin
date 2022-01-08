@@ -65,7 +65,12 @@ fin_instance_t *allocate_instance(fin_agent_declaration_t *declaration) {
         fprintf(stderr, "[%s,%d] Cannot allocate instance for NULL", __FILE__, __LINE__);
         exit(1);
     }
+#ifdef USE_ALLOCATOR
+    fin_instance_t *the_instance = fin_malloc(declaration->m_allocator);
+#else
     fin_instance_t *the_instance = malloc(sizeof(fin_instance_t) + sizeof(void *) * (declaration->m_arity + 1));
+#endif
+
     if (the_instance == NULL) {
         fprintf(stderr, "[%s,%d] Cannot allocate instance for agent %s", __FILE__, __LINE__, declaration->m_name);
         exit(1);
@@ -78,7 +83,12 @@ fin_instance_t *allocate_instance(fin_agent_declaration_t *declaration) {
 
 void free_instance(fin_instance_t *instance) {
     if (instance == NULL) return;
+
+#ifdef USE_ALLOCATOR
+    fin_free(instance->m_declaration->m_allocator, instance);
+#else
     free(instance);
+#endif
 }
 
 fin_port_t *get_port(fin_instance_t *instance, uint32_t port_id) {
@@ -258,9 +268,7 @@ fin_environment_t *allocate_environment(uint32_t declaration_count, uint32_t rul
 
 void free_environment(fin_environment_t *io_environment) {
     if (io_environment == NULL) return;
-    if (io_environment->m_agent_declarations != NULL) {
-        free(io_environment->m_agent_declarations);
-    }
+
     if (io_environment->m_rules != NULL) {
         for (int i = 0; i < io_environment->m_rule_count; i++) {
             free_net(io_environment->m_rules[i].m_lhs);
@@ -268,7 +276,27 @@ void free_environment(fin_environment_t *io_environment) {
         }
         free(io_environment->m_rules);
     }
+
+    if (io_environment->m_agent_declarations != NULL) {
+#ifdef USE_ALLOCATOR
+        for (int i=0; i< io_environment->m_declaration_count; i++) {
+            region_free(io_environment->m_agent_declarations[i].m_allocator);
+        }
+#endif
+        free(io_environment->m_agent_declarations);
+    }
+
     free(io_environment);
+}
+
+void add_agent(fin_environment_t *io_environment, int idx, char* name, uint32_t arity) {
+    io_environment->m_agent_declarations[idx] = (fin_agent_declaration_t) {
+        name,
+        arity,
+#ifdef USE_ALLOCATOR
+        region_allocate(1<<10, sizeof(fin_instance_t) + sizeof(void *) * (arity + 1))
+#endif
+    };
 }
 
 fin_agent_declaration_t *find_agent(fin_environment_t *in_environment, char *in_name) {

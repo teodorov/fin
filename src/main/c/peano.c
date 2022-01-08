@@ -8,9 +8,9 @@ fin_environment_t *peano_addition_agents() {
     fin_environment_t *the_environment = allocate_environment(3, 2);
 
     //ADD the agents
-    the_environment->m_agent_declarations[0] = (fin_agent_declaration_t) {"Z", 0};
-    the_environment->m_agent_declarations[1] = (fin_agent_declaration_t) {"S", 1};
-    the_environment->m_agent_declarations[2] = (fin_agent_declaration_t) {"+", 2};
+    add_agent(the_environment, 0, "Z", 0);
+    add_agent(the_environment, 1, "S", 1);
+    add_agent(the_environment, 2, "+", 2);
     return the_environment;
 }
 
@@ -159,13 +159,13 @@ fin_environment_t *peano_agents() {
     fin_environment_t *the_environment = allocate_environment(6, 8);
 
     //ADD the agents
-    the_environment->m_agent_declarations[0] = (fin_agent_declaration_t) {"Z", 0};
-    the_environment->m_agent_declarations[1] = (fin_agent_declaration_t) {"S", 1};
-    the_environment->m_agent_declarations[2] = (fin_agent_declaration_t) {"+", 2};
+    add_agent(the_environment, 0, "Z", 0);
+    add_agent(the_environment, 1, "S", 1);
+    add_agent(the_environment, 2, "+", 2);
 
-    the_environment->m_agent_declarations[3] = (fin_agent_declaration_t) {"*", 2};
-    the_environment->m_agent_declarations[4] = (fin_agent_declaration_t) {"eps", 0};
-    the_environment->m_agent_declarations[5] = (fin_agent_declaration_t) {"delta", 2};
+    add_agent(the_environment, 3, "*", 2);
+    add_agent(the_environment, 4, "eps", 0);
+    add_agent(the_environment, 5, "delta", 2);
     return the_environment;
 }
 

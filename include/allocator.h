@@ -7,12 +7,11 @@
 
 #include <stdint.h>
 
-void *fin_malloc(size_t size);
-void *fin_calloc(size_t count, size_t size);
-void  fin_free(void *ptr);
-
-//#define malloc fin_malloc
-//#define calloc fin_calloc
-//#define free fin_free
+typedef struct mem_region_s mem_region_t;
+mem_region_t *region_allocate(size_t in_capacity, size_t in_chunk_size);
+void region_free(mem_region_t * io_region);
+void* fin_malloc(mem_region_t *io_region);
+void *fin_calloc(mem_region_t *io_region);
+void fin_free(mem_region_t *io_region, void *ptr);
 
 #endif //FAST_INTERACTION_NETS_ALLOCATOR_H
